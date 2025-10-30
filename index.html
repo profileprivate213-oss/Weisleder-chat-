@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Weisleder Chat — Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <meta name="theme-color" content="#0ea5e9" />
+  <link rel="manifest" href="manifest.json">
+  <style>
+    *::-webkit-scrollbar { width: 8px; height: 8px; }
+    *::-webkit-scrollbar-thumb { background: rgba(100,100,100,.35); border-radius: 9999px; }
+    * { scrollbar-width: thin; }
+    kbd { background: rgba(0,0,0,.06); border: 1px solid rgba(0,0,0,.1); border-bottom-width: 2px; padding: 2px 6px; border-radius: 6px; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50 transition">
+  <div id="app" class="min-h-screen flex">
+    <aside class="hidden md:flex w-80 flex-col border-r border-slate-200 dark:border-slate-800">
+      <div class="p-3 flex items-center gap-2">
+        <div id="meAvatar" class="w-9 h-9 rounded-full bg-sky-500/90 grid place-items-center text-white font-semibold">U</div>
+        <div class="flex-1">
+          <div id="meEmail" class="text-sm font-semibold">You</div>
+          <div id="connStatus" class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2"><span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>Connected</div>
+        </div>
+        <button id="btnNewChat" title="New chat" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">＋</button>
+        <button id="btnTheme" title="Toggle theme" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">🌓</button>
+        <button id="btnLogout" title="Switch account / Logout" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">⎋</button>
+      </div>
+      <div class="px-3 pb-2">
+        <div class="relative">
+          <span class="absolute left-3 top-2.5 text-slate-400">🔎</span>
+          <input id="searchInput" class="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none" placeholder="Search"/>
+        </div>
+      </div>
+      <div id="chatList" class="flex-1 overflow-y-auto pb-3"></div>
+      <div class="p-3 border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-500">
+        Logged in as <span id="whoami">—</span>
+      </div>
+    </aside>
+
+    <div class="md:hidden fixed top-0 inset-x-0 z-10 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
+      <div class="h-14 px-3 flex items-center gap-2">
+        <button id="mobileMenu" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">☰</button>
+        <div class="flex-1">
+          <div id="activeTitle" class="font-semibold text-sm">Weisleder Chat</div>
+          <div class="text-xs text-slate-500">Fake end-to-end encrypted • Connected</div>
+        </div>
+        <button id="btnThemeMobile" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">🌓</button>
+      </div>
+    </div>
+
+    <div id="drawer" class="md:hidden fixed inset-0 z-40 hidden">
+      <div class="absolute inset-0 bg-black/40" id="drawerBackdrop"></div>
+      <div class="absolute inset-y-0 left-0 w-[85vw] max-w-[360px] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col">
+        <div class="p-3 flex items-center gap-2">
+          <div id="meAvatarM" class="w-9 h-9 rounded-full bg-sky-500/90 grid place-items-center text-white font-semibold">U</div>
+          <div class="flex-1">
+            <div id="meEmailM" class="text-sm font-semibold">You</div>
+            <div class="text-xs text-slate-500">Connected</div>
+          </div>
+          <button id="btnNewChatM" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">＋</button>
+        </div>
+        <div class="px-3 pb-2">
+          <div class="relative">
+            <span class="absolute left-3 top-2.5 text-slate-400">🔎</span>
+            <input id="searchInputM" class="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none" placeholder="Search"/>
+          </div>
+        </div>
+        <div id="chatListM" class="flex-1 overflow-y-auto pb-3"></div>
+      </div>
+    </div>
+
+    <main class="flex-1 flex flex-col md:pt-0 pt-14">
+      <div class="h-14 px-4 flex items-center gap-3 border-b border-slate-200 dark:border-slate-800">
+        <div id="activeAvatar" class="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 grid place-items-center">💬</div>
+        <div class="flex-1">
+          <div id="activeName" class="text-sm font-semibold">Select a chat</div>
+          <div class="text-xs text-slate-500">Fake end-to-end encrypted • <span id="netState">Connected</span></div>
+        </div>
+      </div>
+      <div id="messageScroll" class="flex-1 overflow-y-auto px-3 md:px-8 py-3 space-y-2"></div>
+      <div class="border-t border-slate-200 dark:border-slate-800 p-3">
+        <div class="max-w-3xl mx-auto flex items-end gap-2">
+          <button id="btnAttach" title="Attach (demo)" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">📎</button>
+          <div class="relative flex-1">
+            <textarea id="composer" class="w-full min-h-[44px] max-h-[160px] resize-y rounded-xl bg-slate-100 dark:bg-slate-800 px-3 py-2 outline-none pr-12" placeholder="Write a message"></textarea>
+            <div class="absolute right-2 bottom-2 flex gap-1">
+              <button id="btnEmoji" class="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700">😊</button>
+              <button id="btnSend" class="p-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white">➤</button>
+            </div>
+            <div id="emojiPanel" class="hidden absolute bottom-14 right-0 bg-white dark:bg-slate-800 shadow-lg rounded-xl p-2 grid grid-cols-6 gap-1"></div>
+          </div>
+        </div>
+        <div class="max-w-3xl mx-auto mt-2 text-[11px] text-slate-500">Press <kbd>Ctrl/⌘ + Enter</kbd> to send</div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Auth screens -->
+  <div id="auth" class="fixed inset-0 grid place-items-center bg-gradient-to-b from-sky-50 to-white dark:from-slate-900 dark:to-slate-900">
+    <div class="w-[92vw] max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-6 space-y-4">
+      <div><h1 class="text-xl font-semibold">Weisleder Chat</h1><p class="text-sm text-slate-500">Fast, simple, private — demo only (no server)</p></div>
+      <div class="grid grid-cols-2 gap-2">
+        <button id="goSignup" class="py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-medium">Sign up</button>
+        <button id="goSignin" class="py-2 rounded-xl border border-slate-200 dark:border-slate-700">Sign in</button>
+      </div>
+      <div class="text-[11px] text-slate-500">Works offline • Stores data in your browser</div>
+    </div>
+  </div>
+
+  <div id="signup" class="fixed inset-0 hidden place-items-center bg-gradient-to-b from-sky-50/70 to-white/70 dark:from-slate-900/70 dark:to-slate-900/70">
+    <div class="w-[92vw] max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-6">
+      <h2 class="text-lg font-semibold mb-1">Create your account</h2>
+      <p class="text-sm text-slate-500 mb-4">Pick a display name and email</p>
+      <div class="space-y-3">
+        <div><label class="text-xs text-slate-500">Name</label><input id="suName" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none" placeholder="Your name"></div>
+        <div><label class="text-xs text-slate-500">Email</label><input id="suEmail" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none" placeholder="you@example.com"></div>
+        <div><label class="text-xs text-slate-500">Password</label><input id="suPass" type="password" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none" placeholder="••••••••"></div>
+        <button id="btnSignup" class="w-full py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-medium">Create account</button>
+        <button id="toSigninFromSignup" class="w-full py-2 rounded-xl border mt-1">Already have an account? Sign in</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="signin" class="fixed inset-0 hidden place-items-center bg-gradient-to-b from-sky-50/70 to-white/70 dark:from-slate-900/70 dark:to-slate-900/70">
+    <div class="w-[92vw] max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-6">
+      <h2 class="text-lg font-semibold mb-1">Welcome back</h2>
+      <p class="text-sm text-slate-500 mb-4">Sign in to continue</p>
+      <div class="space-y-3">
+        <div><label class="text-xs text-slate-500">Email</label><input id="siEmail" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none"></div>
+        <div><label class="text-xs text-slate-500">Password</label><input id="siPass" type="password" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none"></div>
+        <button id="btnSignin" class="w-full py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-medium">Sign in</button>
+        <button id="toSignupFromSignin" class="w-full py-2 rounded-xl border mt-1">Create a new account</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="newChatModal" class="fixed inset-0 hidden place-items-center bg-black/40">
+    <div class="w-[92vw] max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-4">
+      <h3 class="font-semibold mb-2">Start a chat</h3>
+      <div class="text-sm mb-2">Choose people to chat with (Ctrl/⌘ for multi-select). 2+ = group chat.</div>
+      <select id="userPicker" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-3 py-2" size="6" multiple></select>
+      <div class="mt-3 flex items-center justify-end gap-2">
+        <button id="ncCancel" class="px-3 py-2 rounded-lg border">Cancel</button>
+        <button id="ncCreate" class="px-3 py-2 rounded-lg bg-sky-500 text-white">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const LS_USERS='wl_users_v1', LS_SESS='wl_session_v1', LS_THREADS='wl_threads_v1', LS_THEME='wl_theme';
+    const EMOJIS = ["😀","🥰","🔥","👍","🎉","🙏","✨","🥲","💯","🫶","😴","😎","🤍","🤣","🤔","🤖"];
+    const $ = (id)=>document.getElementById(id);
+    const byId = (arr,id)=>arr.find(x=>x.id===id);
+    const load=(k,f)=>{ try{ return JSON.parse(localStorage.getItem(k)||JSON.stringify(f)); }catch{ return f; } };
+    const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+    const uid=(p='u')=>p+Math.random().toString(36).slice(2,10);
+
+    let users=load(LS_USERS,[]), session=load(LS_SESS,{}), threads=load(LS_THREADS,{});
+    (localStorage.getItem(LS_THEME)==='dark') && document.documentElement.classList.add('dark');
+
+    // refs
+    const chatList=$('chatList'), chatListM=$('chatListM'), searchInput=$('searchInput'), searchInputM=$('searchInputM');
+    const messageScroll=$('messageScroll'), composer=$('composer'), btnSend=$('btnSend'), btnAttach=$('btnAttach'), btnEmoji=$('btnEmoji'), emojiPanel=$('emojiPanel');
+    const activeName=$('activeName'), activeAvatar=$('activeAvatar'), netState=$('netState'), whoami=$('whoami');
+    const meEmail=$('meEmail'), meEmailM=$('meEmailM'), meAvatar=$('meAvatar'), meAvatarM=$('meAvatarM');
+    const btnTheme=$('btnTheme'), btnThemeMobile=$('btnThemeMobile'), btnLogout=$('btnLogout'), btnNewChat=$('btnNewChat'), btnNewChatM=$('btnNewChatM');
+    const auth=$('auth'), signup=$('signup'), signin=$('signin');
+    const goSignup=$('goSignup'), goSignin=$('goSignin'), btnSignup=$('btnSignup'), btnSignin=$('btnSignin');
+    const suName=$('suName'), suEmail=$('suEmail'), suPass=$('suPass'), siEmail=$('siEmail'), siPass=$('siPass');
+    const toSigninFromSignup=$('toSigninFromSignup'), toSignupFromSignin=$('toSignupFromSignin');
+    const mobileMenu=$('mobileMenu'), drawer=$('drawer'), drawerBackdrop=$('drawerBackdrop');
+    const newChatModal=$('newChatModal'), userPicker=$('userPicker'), ncCreate=$('ncCreate'), ncCancel=$('ncCancel');
+    const activeTitle=$('activeTitle');
+
+    function toggleTheme(){ document.documentElement.classList.toggle('dark'); localStorage.setItem(LS_THEME, document.documentElement.classList.contains('dark')?'dark':'light'); }
+    btnTheme.onclick=toggleTheme; btnThemeMobile.onclick=toggleTheme;
+    mobileMenu.onclick=()=>drawer.classList.remove('hidden'); drawerBackdrop.onclick=()=>drawer.classList.add('hidden');
+
+    function renderEmojis(){ emojiPanel.innerHTML=''; EMOJIS.forEach(e=>{ const b=document.createElement('button'); b.textContent=e; b.className='text-xl hover:scale-110 transition'; b.onclick=()=>{ composer.value+=e; emojiPanel.classList.add('hidden'); }; emojiPanel.appendChild(b); }); }
+    renderEmojis();
+    btnEmoji.onclick=()=>emojiPanel.classList.toggle('hidden');
+
+    function hash(p){ let h=0; for(let i=0;i<p.length;i++){ h=(h*31+p.charCodeAt(i))|0; } return String(h); }
+
+    function show(view){ [auth,signup,signin].forEach(v=>v.style.display='none'); if(view) view.style.display='grid'; }
+
+    function signupUser(){ const name=(suName.value||'').trim(), email=(suEmail.value||'').trim().toLowerCase(), pass=(suPass.value||'').trim(); if(!name||!email||!pass) return alert('Fill all fields'); if(users.some(u=>u.email===email)) return alert('Email already exists'); const u={id:uid('u_'),name,email,pass:hash(pass)}; users.push(u); save(LS_USERS,users); session={userId:u.id}; save(LS_SESS,session); initApp(); }
+    function signinUser(){ const email=(siEmail.value||'').trim().toLowerCase(), pass=(siPass.value||'').trim(); const u=users.find(x=>x.email===email && x.pass===hash(pass)); if(!u) return alert('Invalid credentials'); session={userId:u.id}; save(LS_SESS,session); initApp(); }
+    function logoutUser(){ session={}; save(LS_SESS,session); document.getElementById('app').style.display='none'; show(auth); }
+    goSignup.onclick=()=>show(signup); goSignin.onclick=()=>show(signin); btnSignup.onclick=signupUser; btnSignin.onclick=signinUser; toSigninFromSignup.onclick=()=>show(signin); toSignupFromSignin.onclick=()=>show(signup);
+    btnLogout.onclick=logoutUser;
+
+    function ensureSeed(){ if(users.length===0){ const a={id:uid('u_'),name:'Alice Kim',email:'alice@example.com',pass:hash('alice123')}; const b={id:uid('u_'),name:'Dev Bot',email:'devbot@example.com',pass:hash('devbot')}; users=[a,b]; save(LS_USERS,users); const t=uid('t_'); threads[t]={id:t,members:[a.id,b.id],name:null,msgs:[{id:uid('m_'),from:a.id,text:'Welcome to Weisleder Chat 🎉',ts:Date.now()-1000*60*60},{id:uid('m_'),from:b.id,text:'Multi-user demo on one device.',ts:Date.now()-1000*60*55}]}; save(LS_THREADS,threads); } }
+
+    function currentUser(){ return byId(users, session.userId) || null; }
+    function timeStr(ts){ const d=new Date(ts); return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
+    function threadKey(members){ return [...members].sort().join('|'); }
+    function findThreadByMembers(members){ const key=threadKey(members); return Object.values(threads).find(t=>threadKey(t.members)===key)||null; }
+
+    function openNewChat(){ renderUserPicker(); newChatModal.classList.remove('hidden'); }
+    function closeNewChat(){ newChatModal.classList.add('hidden'); }
+    btnNewChat.onclick=openNewChat; btnNewChatM.onclick=openNewChat; ncCancel.onclick=closeNewChat;
+    function renderUserPicker(){ const me=currentUser(); userPicker.innerHTML=''; users.filter(u=>u.id!==me.id).forEach(u=>{ const opt=document.createElement('option'); opt.value=u.id; opt.textContent=`${u.name} — ${u.email}`; userPicker.appendChild(opt); }); }
+    function createThread(memberIds){ const me=currentUser(); const members=Array.from(new Set([me.id, ...memberIds])); let t=findThreadByMembers(members); if(!t){ const id=uid('t_'); t=threads[id]={id, members, name: members.length>2? 'New Group' : null, msgs:[]}; save(LS_THREADS,threads); } currentThreadId=t.id; renderChats(); renderMessages(); }
+    ncCreate.onclick=()=>{ const sel=Array.from(userPicker.selectedOptions).map(o=>o.value); if(sel.length===0) return alert('Pick at least one user'); createThread(sel); closeNewChat(); }
+
+    let currentThreadId=null;
+    function contactName(uId){ const u=byId(users,uId); return u?u.name:'Unknown'; }
+    function threadDisplay(t){ const me=currentUser(); const others=t.members.filter(x=>x!==me.id); if(t.name && t.members.length>2) return t.name+` (${t.members.length})`; if(others.length===1) return contactName(others[0]); return `Group (${t.members.length})`; }
+
+    function renderChats(mobile=false){
+      const holder=mobile?chatListM:chatList, q=(mobile?searchInputM.value:searchInput.value||'').toLowerCase();
+      holder.innerHTML='';
+      const me=currentUser();
+      const list=Object.values(threads).filter(t=>t.members.includes(me.id)).map(t=>({...t,last:t.msgs[t.msgs.length-1]})).sort((a,b)=>(b.last?.ts||0)-(a.last?.ts||0)).filter(t=>threadDisplay(t).toLowerCase().includes(q));
+      list.forEach(t=>{
+        const btn=document.createElement('button');
+        btn.className='w-full px-3 py-2 flex items-center gap-3 hover:bg-slate-100 dark:hover:bg-slate-800 '+(t.id===currentThreadId?'bg-slate-100/70 dark:bg-slate-800/70':'');
+        const avatarText=t.members.length>2?'G':threadDisplay(t).slice(0,2).toUpperCase();
+        btn.innerHTML=`<div class="w-10 h-10 rounded-full grid place-items-center bg-slate-200 dark:bg-slate-700">${avatarText}</div>
+        <div class="flex-1 text-left"><div class="font-medium truncate">${threadDisplay(t)}</div><div class="text-xs text-slate-500 truncate">${t.last?t.last.text:'No messages yet'}</div></div>
+        <div class="text-[10px] text-slate-400">${t.last?timeStr(t.last.ts):''}</div>`;
+        btn.onclick=()=>{ currentThreadId=t.id; renderChats(mobile); renderMessages(); drawer.classList.add('hidden'); };
+        holder.appendChild(btn);
+      });
+    }
+
+    function renderMessages(){
+      const me=currentUser(); const t=threads[currentThreadId];
+      if(!t){ activeName.textContent='Select a chat'; activeAvatar.textContent='💬'; messageScroll.innerHTML=''; return; }
+      activeTitle && (activeTitle.textContent=threadDisplay(t)); activeName.textContent=threadDisplay(t);
+      activeAvatar.textContent=t.members.length>2?'G':threadDisplay(t).slice(0,2).toUpperCase();
+      messageScroll.innerHTML='';
+      t.msgs.forEach(m=>{
+        const mine=m.from===me.id; const sender=users.find(u=>u.id===m.from);
+        const row=document.createElement('div'); row.className='flex '+(mine?'justify-end':'justify-start');
+        row.innerHTML=`<div class="max-w-[85%] md:max-w-[70%] rounded-2xl px-3 py-2 shadow-sm ${mine?'bg-sky-500 text-white':'bg-slate-100 dark:bg-slate-800'}">
+          ${t.members.length>2?`<div class="text-[11px] ${mine?'text-white/80':'text-slate-500'}">${sender?.name||'User'}</div>`:''}
+          <div class="whitespace-pre-wrap break-words">${m.text}</div>
+          <div class="text-[10px] mt-1 ${mine?'text-white/80':'text-slate-500'}">${timeStr(m.ts)}</div></div>`;
+        messageScroll.appendChild(row);
+      });
+      messageScroll.scrollTop=messageScroll.scrollHeight;
+      whoami.textContent=`${me.name} · ${me.email}`; meEmail.textContent=me.email; meEmailM.textContent=me.email; meAvatar.textContent=(me.name[0]||'U').toUpperCase(); meAvatarM.textContent=(me.name[0]||'U').toUpperCase();
+    }
+
+    function addMessage(text){ if(!currentThreadId) return alert('Select or create a chat'); const me=currentUser(); const t=threads[currentThreadId]; t.msgs.push({id:uid('m_'), from:me.id, text, ts:Date.now()}); save(LS_THREADS,threads); renderChats(); renderMessages(); }
+    btnSend.onclick=()=>{ const txt=(composer.value||'').trim(); if(!txt) return; addMessage(txt); composer.value=''; };
+    composer.onkeydown=(e)=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ btnSend.click(); } };
+    btnAttach.onclick=()=>addMessage('[file] demo.pdf');
+
+    searchInput.oninput=()=>renderChats();
+    searchInputM.oninput=()=>renderChats(true);
+
+    function initApp(){
+      ensureSeed();
+      const me=currentUser(); if(!me){ show(auth); return; }
+      document.getElementById('app').style.display='flex'; [auth,signup,signin].forEach(v=>v.style.display='none');
+      const mine=Object.values(threads).filter(t=>t.members.includes(me.id)).sort((a,b)=>(b.msgs.at(-1)?.ts||0)-(a.msgs.at(-1)?.ts||0));
+      currentThreadId=mine[0]?.id||null;
+      renderChats(); renderMessages();
+    }
+
+    // start
+    if (session.userId && byId(users, session.userId)) { initApp(); } else { show(auth); }
+  </script>
+</body>
+</html>
