@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Weisleder Chat</title>
 
-<!-- Tailwind (CDN) -->
+<!-- Tailwind -->
 <script src="https://cdn.tailwindcss.com"></script>
 
 <!-- PWA -->
@@ -25,7 +25,6 @@
 </head>
 <body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50">
 
-<!-- Top bar with global email search -->
 <header class="fixed top-0 inset-x-0 z-20 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-b border-slate-200 dark:border-slate-800">
   <div class="max-w-6xl mx-auto px-3 py-2 flex items-center gap-3">
     <div class="hidden md:flex items-center gap-2 font-semibold">
@@ -40,9 +39,7 @@
   </div>
 </header>
 
-<!-- App -->
 <div id="app" class="min-h-screen flex pt-16" style="display:none">
-  <!-- Left: sidebar -->
   <aside class="hidden md:flex w-80 flex-col border-r border-slate-200 dark:border-slate-800">
     <div class="px-3 py-3 flex items-center gap-2 text-white" style="background:var(--brand)">
       <img id="meAvatar" class="h-9 w-9 rounded-full object-cover bg-white/20" alt="avatar" />
@@ -59,7 +56,6 @@
     </div>
   </aside>
 
-  <!-- Right: chat -->
   <main class="flex-1 flex flex-col">
     <div class="h-14 px-4 flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80">
       <img id="activeAvatar" class="h-9 w-9 rounded-full object-cover bg-slate-200 dark:bg-slate-700" />
@@ -77,7 +73,6 @@
   </main>
 </div>
 
-<!-- Landing: choose sign up / sign in -->
 <section id="auth" class="fixed inset-0 grid place-items-center bg-gradient-to-b from-sky-50 to-white dark:from-slate-900 dark:to-slate-900">
   <div class="w-[92vw] max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-6 space-y-4">
     <div class="text-center text-2xl font-bold" style="color:var(--brand)">Weisleder Chat</div>
@@ -88,20 +83,18 @@
   </div>
 </section>
 
-<!-- Sign Up modal -->
 <section id="signup" class="fixed inset-0 hidden place-items-center bg-black/30">
   <div class="w-[92vw] max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-6">
     <h2 class="text-lg font-semibold mb-2">Create account</h2>
     <input id="suName" class="w-full mb-2 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800" placeholder="Name" />
     <input id="suEmail" class="w-full mb-2 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800" placeholder="Email" />
     <input id="suPass" type="password" class="w-full mb-2 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800" placeholder="Password" />
-    <label class="text-sm block mb-1">Profile photo</label>
+    <label class="text-sm block mb-1">Profile photo (optional)</label>
     <input id="suPhoto" type="file" accept="image/*" class="mb-3" />
     <button id="btnSignup" class="w-full py-2 rounded-xl btn-brand">Create</button>
   </div>
 </section>
 
-<!-- Sign In modal -->
 <section id="signin" class="fixed inset-0 hidden place-items-center bg-black/30">
   <div class="w-[92vw] max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-6">
     <h2 class="text-lg font-semibold mb-2">Sign in</h2>
@@ -111,9 +104,7 @@
   </div>
 </section>
 
-<!-- App logic -->
 <script type="module">
-/* ---------------- Firebase ---------------- */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { 
   getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
@@ -126,7 +117,7 @@ import {
 import { getStorage, ref as sRef, uploadBytes, getDownloadURL }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
 
-/* ✅ Your NEW project config (weisleder-ecc04) */
+/* ✅ Your Firebase project (weisleder-ecc04) */
 const firebaseConfig = {
   apiKey: "AIzaSyCE1IUp9u66uKthzwpLQ8qXrofQbD-FmII",
   authDomain: "weisleder-ecc04.firebaseapp.com",
@@ -140,207 +131,166 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app);
 
-/* ---------------- Helpers ---------------- */
-const $ = (id) => document.getElementById(id);
-const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
+// Try to init Storage (may fail if bucket not provisioned on your plan)
+let storage = null;
+try { storage = getStorage(app); } catch (e) { storage = null; }
 
-// tiny “delivered” beep
-function ping(){
-  const ctx = new (window.AudioContext||window.webkitAudioContext)();
-  const osc = ctx.createOscillator(); const gain = ctx.createGain();
-  osc.frequency.value = 800; gain.gain.value = .08; osc.connect(gain); gain.connect(ctx.destination);
-  osc.start(); setTimeout(()=>{ osc.stop(); ctx.close(); }, 180);
+const $ = (id)=>document.getElementById(id);
+function beep(){
+  const c=new (window.AudioContext||window.webkitAudioContext)();
+  const o=c.createOscillator(), g=c.createGain(); o.frequency.value=800; g.gain.value=.08; o.connect(g); g.connect(c.destination);
+  o.start(); setTimeout(()=>{o.stop(); c.close();},180);
 }
-
-// notifications (when tab not focused)
 async function notify(title, body){
-  try {
-    if (document.hasFocus()) return; // only if background
-    if (Notification.permission === "granted"){
-      new Notification(title, { body, icon: "icon-192.png" });
-    } else if (Notification.permission !== "denied"){
-      await Notification.requestPermission();
-    }
-  } catch {}
+  try{
+    if(document.hasFocus()) return;
+    if(Notification.permission==="granted") new Notification(title,{body,icon:"icon-192.png"});
+    else if(Notification.permission!=="denied") await Notification.requestPermission();
+  }catch{}
 }
 
-/* ---------------- UI bindings ---------------- */
-$('goSignup').onclick = ()=> $('signup').style.display='grid';
-$('goSignin').onclick = ()=> $('signin').style.display='grid';
-$('btnLogout').onclick = ()=> signOut(auth);
+$('goSignup').onclick=()=>$('signup').style.display='grid';
+$('goSignin').onclick=()=>$('signin').style.display='grid';
+$('btnLogout').onclick=()=>signOut(auth);
 
-$('btnSignup').onclick = async ()=>{
-  const name = $('suName').value.trim();
-  const email = $('suEmail').value.trim().toLowerCase();
-  const pass = $('suPass').value.trim();
-  if(!name || !email || !pass) return alert("Fill all fields");
+$('btnSignup').onclick=async()=>{
+  const name=$('suName').value.trim();
+  const email=$('suEmail').value.trim().toLowerCase();
+  const pass=$('suPass').value.trim();
+  if(!name||!email||!pass) return alert("Fill all fields");
+  const cred=await createUserWithEmailAndPassword(auth,email,pass);
 
-  const cred = await createUserWithEmailAndPassword(auth,email,pass);
-
-  // upload avatar if provided
-  let photoURL = null;
-  const file = $('suPhoto').files[0];
-  if(file){
-    const ref = sRef(storage, `avatars/${cred.user.uid}.jpg`);
-    await uploadBytes(ref, file);
-    photoURL = await getDownloadURL(ref);
+  // avatar upload (graceful fallback if Storage locked)
+  let photoURL=null;
+  const file=$('suPhoto').files[0];
+  if(file && storage){
+    try{
+      const ref=sRef(storage,`avatars/${cred.user.uid}.jpg`);
+      await uploadBytes(ref,file);
+      photoURL=await getDownloadURL(ref);
+    }catch(err){
+      console.warn("Avatar upload skipped:", err?.message||err);
+      alert("Profile photo couldn't be saved yet (Storage not enabled). You can add it later.");
+    }
   }
-  await updateProfile(cred.user, { displayName:name, photoURL });
-  await setDoc(doc(db,'users',cred.user.uid), {
-    name, email, avatarURL: photoURL || null, createdAt: serverTimestamp()
-  });
 
+  await updateProfile(cred.user,{displayName:name, photoURL});
+  await setDoc(doc(db,'users',cred.user.uid),{
+    name, email, avatarURL: photoURL||null, createdAt: serverTimestamp()
+  });
   $('signup').style.display='none';
 };
 
-$('btnSignin').onclick = async ()=>{
-  const email = $('siEmail').value.trim().toLowerCase();
-  const pass = $('siPass').value.trim();
+$('btnSignin').onclick=async()=>{
+  const email=$('siEmail').value.trim().toLowerCase();
+  const pass=$('siPass').value.trim();
   await signInWithEmailAndPassword(auth,email,pass);
   $('signin').style.display='none';
 };
 
-/* --------- Start or find chat by email (top bar) --------- */
-$('globalEmailStart').onclick = async ()=>{
-  const email = $('globalEmailSearch').value.trim().toLowerCase();
+$('globalEmailStart').onclick=async()=>{
+  const email=$('globalEmailSearch').value.trim().toLowerCase();
   if(!email) return;
-  const me = auth.currentUser;
-  if(!me) return alert("Sign in first");
-
-  // find user by email
-  const q = query(collection(db,'users'), where('email','==', email));
-  const snap = await getDocs(q);
-  if(snap.empty){ alert("No user with that email."); return; }
-  const otherId = snap.docs[0].id;
-
-  // create new thread (simple)
-  const tRef = await addDoc(collection(db,'threads'), {
-    members: [me.uid, otherId],
-    createdAt: serverTimestamp()
-  });
+  const me=auth.currentUser; if(!me) return alert("Sign in first");
+  const q=query(collection(db,'users'), where('email','==',email));
+  const snap=await getDocs(q);
+  if(snap.empty) return alert("No user with that email.");
+  const otherId=snap.docs[0].id;
+  const tRef=await addDoc(collection(db,'threads'),{members:[me.uid,otherId],createdAt:serverTimestamp()});
   $('globalEmailSearch').value='';
   openThread(tRef.id);
 };
 
-/* ---------------- Chat rendering ---------------- */
-let activeThread = null;
-$('btnSend').onclick = async ()=>{
-  const text = $('composer').value.trim();
-  if(!text || !activeThread) return;
-  $('composer').value = '';
-  await addDoc(collection(db,'threads',activeThread,'messages'), {
-    from: auth.currentUser.uid,
-    text,
-    ts: serverTimestamp()
-  });
-  ping();
+let activeThread=null;
+$('btnSend').onclick=async()=>{
+  const text=$('composer').value.trim();
+  if(!text||!activeThread) return;
+  $('composer').value='';
+  await addDoc(collection(db,'threads',activeThread,'messages'),{from:auth.currentUser.uid,text,ts:serverTimestamp()});
+  beep();
 };
 
 function renderMessage(m){
-  const mine = m.from === auth.currentUser.uid;
-  const wrap = document.createElement('div');
-  wrap.className = 'w-full flex '+(mine?'justify-end':'justify-start');
-  wrap.innerHTML = `
-    <div class="bubble ${mine?'out':'in'} max-w-[74%] rounded-2xl px-3 py-2 ${mine?'bg-[var(--outgoing)]':'bg-white'}">
-      ${m.text ?? ''}
-    </div>`;
-  return wrap;
+  const mine=m.from===auth.currentUser.uid;
+  const div=document.createElement('div');
+  div.className='w-full flex '+(mine?'justify-end':'justify-start');
+  div.innerHTML=`<div class="bubble ${mine?'out':'in'} max-w-[74%] rounded-2xl px-3 py-2 ${mine?'bg-[var(--outgoing)]':'bg-white'}">${m.text??''}</div>`;
+  return div;
 }
 
-function openThread(threadId){
-  activeThread = threadId;
-  // header (lightweight – show member other than me)
-  (async ()=>{
-    const tSnap = await getDoc(doc(db,'threads',threadId));
-    const data = tSnap.data() || {};
-    const other = (data.members||[]).find(id=>id!==auth.currentUser.uid);
+function openThread(id){
+  activeThread=id;
+  (async()=>{
+    const t=await getDoc(doc(db,'threads',id));
+    const data=t.data()||{};
+    const other=(data.members||[]).find(x=>x!==auth.currentUser.uid);
     if(other){
-      const u = await getDoc(doc(db,'users',other));
-      const ud = u.data()||{};
-      $('activeName').textContent = ud.name || ud.email || 'Chat';
-      $('activeAvatar').src = ud.avatarURL || 'icon-192.png';
+      const u=await getDoc(doc(db,'users',other)); const ud=u.data()||{};
+      $('activeName').textContent=ud.name||ud.email||'Chat';
+      $('activeAvatar').src=ud.avatarURL||'icon-192.png';
     }
   })();
 
-  const box = $('messageScroll');
-  const q = query(collection(db,'threads',threadId,'messages'), orderBy('ts'));
+  const box=$('messageScroll');
+  const q=query(collection(db,'threads',id,'messages'), orderBy('ts'));
   onSnapshot(q, snap=>{
-    let newIncoming = false;
-    box.innerHTML = '';
-    snap.forEach(d=>{
-      const m = d.data();
-      if(m.from !== auth.currentUser.uid) newIncoming = true;
-      box.appendChild(renderMessage(m));
-    });
-    box.scrollTop = box.scrollHeight;
-    if(newIncoming) { ping(); notify('New message', 'You received a message.'); }
+    let incoming=false; box.innerHTML='';
+    snap.forEach(d=>{ const m=d.data(); if(m.from!==auth.currentUser.uid) incoming=true; box.appendChild(renderMessage(m)); });
+    box.scrollTop=box.scrollHeight;
+    if(incoming){ beep(); notify('New message','You received a message.'); }
   });
 }
 
-/* ---------------- Profile editing ---------------- */
-$('btnProfile').onclick = async ()=>{
-  const me = auth.currentUser;
-  if(!me) return;
-  const newName = prompt("Edit name", me.displayName || '');
+$('btnProfile').onclick=async()=>{
+  const me=auth.currentUser; if(!me) return;
+  const newName=prompt("Edit name", me.displayName||'');
   if(newName && newName.trim()){
-    await updateProfile(me, { displayName: newName.trim() });
-    await updateDoc(doc(db,'users',me.uid), { name: newName.trim() });
-    $('meName').textContent = newName.trim();
+    await updateProfile(me,{displayName:newName.trim()});
+    await updateDoc(doc(db,'users',me.uid),{name:newName.trim()});
+    $('meName').textContent=newName.trim();
   }
 };
+$('btnNewChat').onclick=()=>$('globalEmailSearch').focus();
 
-$('btnNewChat').onclick = ()=> document.getElementById('globalEmailSearch').focus();
-
-/* ---------------- Auth state ---------------- */
 onAuthStateChanged(auth, async(user)=>{
   if(user){
     $('auth').style.display='none';
     $('app').style.display='flex';
-    $('meName').textContent = user.displayName || '(no name)';
-    $('meEmail').textContent = user.email;
-    $('meAvatar').src = user.photoURL || 'icon-192.png';
+    $('meName').textContent=user.displayName||'(no name)';
+    $('meEmail').textContent=user.email;
+    $('meAvatar').src=user.photoURL||'icon-192.png';
 
-    // simple list of threads where user is a member
-    const list = $('chatList');
-    list.innerHTML = '';
-    const q = query(collection(db,'threads'), where('members','array-contains', user.uid));
-    onSnapshot(q, async (snap)=>{
-      list.innerHTML = '';
-      for (const d of snap.docs){
-        const t = d.data(); const id = d.id;
-        const other = (t.members||[]).find(x=>x!==user.uid);
+    const list=$('chatList');
+    const q=query(collection(db,'threads'), where('members','array-contains', user.uid));
+    onSnapshot(q, async(snap)=>{
+      list.innerHTML='';
+      for(const d of snap.docs){
+        const t=d.data(), id=d.id;
+        const other=(t.members||[]).find(x=>x!==user.uid);
         let title='Chat', avatar='icon-192.png';
         if(other){
-          const u = await getDoc(doc(db,'users',other));
-          const ud = u.data()||{};
-          title = ud.name || ud.email || 'Chat';
-          avatar = ud.avatarURL || avatar;
+          const u=await getDoc(doc(db,'users',other)); const ud=u.data()||{};
+          title=ud.name||ud.email||'Chat'; avatar=ud.avatarURL||avatar;
         }
-        const row = document.createElement('button');
+        const row=document.createElement('button');
         row.className='w-full flex items-center gap-3 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800';
         row.innerHTML=`<img class="h-9 w-9 rounded-full object-cover" src="${avatar}"/><div class="flex-1 text-left text-sm">${title}</div>`;
-        row.onclick = ()=> openThread(id);
+        row.onclick=()=>openThread(id);
         list.appendChild(row);
       }
     });
 
-    // ask notification permission once
-    if (Notification && Notification.permission === "default"){
-      try { await Notification.requestPermission(); } catch {}
-    }
-  } else {
+    if(Notification && Notification.permission==="default"){ try{ await Notification.requestPermission(); }catch{} }
+  }else{
     $('auth').style.display='grid';
     $('app').style.display='none';
   }
 });
 
-/* ---------------- PWA: service-worker ---------------- */
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
-  });
+/* PWA */
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=>{ navigator.serviceWorker.register("./service-worker.js").catch(()=>{}); });
 }
 </script>
 </body>
