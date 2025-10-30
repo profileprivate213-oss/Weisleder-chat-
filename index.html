@@ -1,270 +1,498 @@
+; 
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Weisleder Chat — Demo</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Weisleder Chat</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <meta name="theme-color" content="#0ea5e9" />
+
+  <!-- PWA -->
   <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#229ED9"> <!-- match brand color -->
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <!-- THEME (change this color to rebrand fast) -->
   <style>
-    *::-webkit-scrollbar { width: 8px; height: 8px; }
-    *::-webkit-scrollbar-thumb { background: rgba(100,100,100,.35); border-radius: 9999px; }
-    * { scrollbar-width: thin; }
-    kbd { background: rgba(0,0,0,.06); border: 1px solid rgba(0,0,0,.1); border-bottom-width: 2px; padding: 2px 6px; border-radius: 6px; }
+    :root{
+      --brand:#229ED9;       /* primary brand color */
+      --outgoing:#D1F0FF;    /* my bubble */
+    }
+    *::-webkit-scrollbar{width:8px;height:8px}
+    *::-webkit-scrollbar-thumb{background:rgba(100,100,100,.35);border-radius:9999px}
+    *{scrollbar-width:thin}
+    .bubble{ position:relative }
+    .bubble.in::after{ content:""; position:absolute; left:-6px; bottom:0; border-top:6px solid transparent; border-right:6px solid #fff }
+    .dark .bubble.in::after{ border-right-color: rgb(30 41 59) }
+    .bubble.out::after{ content:""; position:absolute; right:-6px; bottom:0; border-top:6px solid transparent; border-left:6px solid var(--outgoing) }
+    .tick{ font-size:10px; opacity:.7 }
+    .btn-brand{ background:var(--brand); color:#fff }
+    .btn-brand:hover{ filter:brightness(.95) }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50 transition">
-  <div id="app" class="min-h-screen flex">
-    <aside class="hidden md:flex w-80 flex-col border-r border-slate-200 dark:border-slate-800">
-      <div class="p-3 flex items-center gap-2">
-        <div id="meAvatar" class="w-9 h-9 rounded-full bg-sky-500/90 grid place-items-center text-white font-semibold">U</div>
-        <div class="flex-1">
-          <div id="meEmail" class="text-sm font-semibold">You</div>
-          <div id="connStatus" class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2"><span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>Connected</div>
-        </div>
-        <button id="btnNewChat" title="New chat" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">＋</button>
-        <button id="btnTheme" title="Toggle theme" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">🌓</button>
-        <button id="btnLogout" title="Switch account / Logout" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">⎋</button>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50">
+
+<!-- Mobile top bar -->
+<div class="md:hidden fixed top-0 inset-x-0 z-10 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+  <div class="h-14 px-3 flex items-center gap-2">
+    <button id="mobileMenu" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">☰</button>
+    <div class="flex-1">
+      <div class="font-semibold text-sm flex items-center gap-2">
+        <!-- Simple plane logo -->
+        <svg width="18" height="18" viewBox="0 0 24 24" class="fill-[var(--brand)]"><path d="M22 2 11 13l-1 6 4-3 8-14zM2 12l7 2"/></svg>
+        Weisleder Chat
       </div>
-      <div class="px-3 pb-2">
+      <div class="text-xs text-slate-500">Encrypted (demo) • Connected</div>
+    </div>
+    <button id="btnThemeMobile" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">🌓</button>
+  </div>
+</div>
+
+<div id="app" class="min-h-screen flex md:pt-0 pt-14">
+
+  <!-- LEFT: Chats list -->
+  <aside class="hidden md:flex w-80 flex-col border-r border-slate-200 dark:border-slate-800">
+    <div class="px-3 py-3 flex items-center gap-2 text-white" style="background:var(--brand)">
+      <img id="meAvatar" class="h-9 w-9 rounded-full object-cover bg-white/20" alt="avatar"/>
+      <div class="flex-1">
+        <div id="meName" class="text-sm font-semibold">You</div>
+        <div id="meEmail" class="text-xs/4 opacity-80">you@example.com</div>
+      </div>
+      <button id="btnProfile" class="px-2 py-1 rounded-md bg-white/20 hover:bg-white/30">Edit</button>
+    </div>
+
+    <div class="px-3 py-2 border-b border-slate-200 dark:border-slate-800">
+      <div class="relative">
+        <span class="absolute left-3 top-2.5 text-slate-400">🔎</span>
+        <input id="searchInput" class="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none" placeholder="Search chats"/>
+      </div>
+    </div>
+
+    <div id="chatList" class="flex-1 overflow-y-auto pb-3 bg-white dark:bg-slate-900"></div>
+
+    <div class="p-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
+      <button id="btnNewChat" class="w-full py-2 rounded-xl btn-brand">＋ New chat</button>
+      <button id="btnFindByEmail" class="w-full py-2 rounded-xl border">Find user by email</button>
+      <button id="btnLogout" class="w-full py-2 rounded-xl border">Switch account</button>
+    </div>
+  </aside>
+
+  <!-- Mobile drawer -->
+  <div id="drawer" class="md:hidden fixed inset-0 z-40 hidden">
+    <div class="absolute inset-0 bg-black/40" id="drawerBackdrop"></div>
+    <div class="absolute inset-y-0 left-0 w-[85vw] max-w-[360px] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col">
+      <div class="px-3 py-3 flex items-center gap-2 text-white" style="background:var(--brand)">
+        <img id="meAvatarM" class="h-9 w-9 rounded-full object-cover bg-white/20"/>
+        <div class="flex-1">
+          <div id="meNameM" class="text-sm font-semibold">You</div>
+          <div id="meEmailM" class="text-xs/4 opacity-80">you@example.com</div>
+        </div>
+        <button id="btnProfileM" class="px-2 py-1 rounded-md bg-white/20">Edit</button>
+      </div>
+      <div class="px-3 py-2 border-b border-slate-200 dark:border-slate-800">
         <div class="relative">
           <span class="absolute left-3 top-2.5 text-slate-400">🔎</span>
-          <input id="searchInput" class="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none" placeholder="Search"/>
+          <input id="searchInputM" class="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none" placeholder="Search chats"/>
         </div>
       </div>
-      <div id="chatList" class="flex-1 overflow-y-auto pb-3"></div>
-      <div class="p-3 border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-500">
-        Logged in as <span id="whoami">—</span>
+      <div id="chatListM" class="flex-1 overflow-y-auto pb-3"></div>
+      <div class="p-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
+        <button id="btnNewChatM" class="w-full py-2 rounded-xl btn-brand">＋ New chat</button>
+        <button id="btnFindByEmailM" class="w-full py-2 rounded-xl border">Find user by email</button>
+        <button id="btnLogoutM" class="w-full py-2 rounded-xl border">Switch account</button>
       </div>
-    </aside>
+    </div>
+  </div>
 
-    <div class="md:hidden fixed top-0 inset-x-0 z-10 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
-      <div class="h-14 px-3 flex items-center gap-2">
-        <button id="mobileMenu" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">☰</button>
-        <div class="flex-1">
-          <div id="activeTitle" class="font-semibold text-sm">Weisleder Chat</div>
-          <div class="text-xs text-slate-500">Fake end-to-end encrypted • Connected</div>
-        </div>
-        <button id="btnThemeMobile" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">🌓</button>
+  <!-- RIGHT: Messages -->
+  <main class="flex-1 flex flex-col">
+    <div class="h-14 px-4 flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80">
+      <img id="activeAvatar" class="h-9 w-9 rounded-full object-cover bg-slate-200 dark:bg-slate-700"/>
+      <div class="flex-1">
+        <div id="activeName" class="text-sm font-semibold">Select a chat</div>
+        <div class="text-xs text-slate-500">Encrypted (demo) • <span id="netState">Connected</span></div>
       </div>
     </div>
 
-    <div id="drawer" class="md:hidden fixed inset-0 z-40 hidden">
-      <div class="absolute inset-0 bg-black/40" id="drawerBackdrop"></div>
-      <div class="absolute inset-y-0 left-0 w-[85vw] max-w-[360px] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col">
-        <div class="p-3 flex items-center gap-2">
-          <div id="meAvatarM" class="w-9 h-9 rounded-full bg-sky-500/90 grid place-items-center text-white font-semibold">U</div>
-          <div class="flex-1">
-            <div id="meEmailM" class="text-sm font-semibold">You</div>
-            <div class="text-xs text-slate-500">Connected</div>
+    <div id="messageScroll" class="flex-1 overflow-y-auto px-3 md:px-8 py-3 space-y-2"></div>
+
+    <div class="border-t border-slate-200 dark:border-slate-800 p-3 bg-white/80 dark:bg-slate-900/80">
+      <div class="max-w-3xl mx-auto flex items-end gap-2">
+        <button id="btnAttach" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" title="Attach (demo)">📎</button>
+        <div class="relative flex-1">
+          <textarea id="composer" class="w-full min-h-[44px] max-h-[160px] resize-y rounded-xl bg-slate-100 dark:bg-slate-800 px-3 py-2 outline-none pr-12" placeholder="Message"></textarea>
+          <div class="absolute right-2 bottom-2 flex gap-1">
+            <button id="btnEmoji" class="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700">😊</button>
+            <button id="btnSend" class="p-2 rounded-lg btn-brand">➤</button>
           </div>
-          <button id="btnNewChatM" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">＋</button>
-        </div>
-        <div class="px-3 pb-2">
-          <div class="relative">
-            <span class="absolute left-3 top-2.5 text-slate-400">🔎</span>
-            <input id="searchInputM" class="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none" placeholder="Search"/>
-          </div>
-        </div>
-        <div id="chatListM" class="flex-1 overflow-y-auto pb-3"></div>
-      </div>
-    </div>
-
-    <main class="flex-1 flex flex-col md:pt-0 pt-14">
-      <div class="h-14 px-4 flex items-center gap-3 border-b border-slate-200 dark:border-slate-800">
-        <div id="activeAvatar" class="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 grid place-items-center">💬</div>
-        <div class="flex-1">
-          <div id="activeName" class="text-sm font-semibold">Select a chat</div>
-          <div class="text-xs text-slate-500">Fake end-to-end encrypted • <span id="netState">Connected</span></div>
+          <div id="emojiPanel" class="hidden absolute bottom-14 right-0 bg-white dark:bg-slate-800 shadow-lg rounded-xl p-2 grid grid-cols-6 gap-1"></div>
         </div>
       </div>
-      <div id="messageScroll" class="flex-1 overflow-y-auto px-3 md:px-8 py-3 space-y-2"></div>
-      <div class="border-t border-slate-200 dark:border-slate-800 p-3">
-        <div class="max-w-3xl mx-auto flex items-end gap-2">
-          <button id="btnAttach" title="Attach (demo)" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">📎</button>
-          <div class="relative flex-1">
-            <textarea id="composer" class="w-full min-h-[44px] max-h-[160px] resize-y rounded-xl bg-slate-100 dark:bg-slate-800 px-3 py-2 outline-none pr-12" placeholder="Write a message"></textarea>
-            <div class="absolute right-2 bottom-2 flex gap-1">
-              <button id="btnEmoji" class="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700">😊</button>
-              <button id="btnSend" class="p-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white">➤</button>
-            </div>
-            <div id="emojiPanel" class="hidden absolute bottom-14 right-0 bg-white dark:bg-slate-800 shadow-lg rounded-xl p-2 grid grid-cols-6 gap-1"></div>
-          </div>
+      <div class="max-w-3xl mx-auto mt-2 text-[11px] text-slate-500">Press <kbd>Ctrl/⌘ + Enter</kbd> to send</div>
+    </div>
+  </main>
+</div>
+
+<!-- AUTH -->
+<div id="auth" class="fixed inset-0 grid place-items-center bg-gradient-to-b from-sky-50 to-white dark:from-slate-900 dark:to-slate-900">
+  <div class="w-[92vw] max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-6 space-y-4">
+    <div class="text-center">
+      <div class="text-2xl font-bold" style="color:var(--brand)">
+        <div class="inline-flex items-center gap-2">
+          <svg width="26" height="26" viewBox="0 0 24 24" class="fill-[var(--brand)]"><path d="M22 2 11 13l-1 6 4-3 8-14zM2 12l7 2"/></svg>
+          Weisleder Chat
         </div>
-        <div class="max-w-3xl mx-auto mt-2 text-[11px] text-slate-500">Press <kbd>Ctrl/⌘ + Enter</kbd> to send</div>
       </div>
-    </main>
-  </div>
-
-  <!-- Auth screens -->
-  <div id="auth" class="fixed inset-0 grid place-items-center bg-gradient-to-b from-sky-50 to-white dark:from-slate-900 dark:to-slate-900">
-    <div class="w-[92vw] max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-6 space-y-4">
-      <div><h1 class="text-xl font-semibold">Weisleder Chat</h1><p class="text-sm text-slate-500">Fast, simple, private — demo only (no server)</p></div>
-      <div class="grid grid-cols-2 gap-2">
-        <button id="goSignup" class="py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-medium">Sign up</button>
-        <button id="goSignin" class="py-2 rounded-xl border border-slate-200 dark:border-slate-700">Sign in</button>
-      </div>
-      <div class="text-[11px] text-slate-500">Works offline • Stores data in your browser</div>
+      <div class="text-sm text-slate-500">Fast • Simple • Private (demo)</div>
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <button id="goSignup" class="py-2 rounded-xl btn-brand font-medium">Sign up</button>
+      <button id="goSignin" class="py-2 rounded-xl border border-slate-200 dark:border-slate-700">Sign in</button>
     </div>
   </div>
+</div>
 
-  <div id="signup" class="fixed inset-0 hidden place-items-center bg-gradient-to-b from-sky-50/70 to-white/70 dark:from-slate-900/70 dark:to-slate-900/70">
-    <div class="w-[92vw] max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-6">
-      <h2 class="text-lg font-semibold mb-1">Create your account</h2>
-      <p class="text-sm text-slate-500 mb-4">Pick a display name and email</p>
-      <div class="space-y-3">
-        <div><label class="text-xs text-slate-500">Name</label><input id="suName" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none" placeholder="Your name"></div>
-        <div><label class="text-xs text-slate-500">Email</label><input id="suEmail" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none" placeholder="you@example.com"></div>
-        <div><label class="text-xs text-slate-500">Password</label><input id="suPass" type="password" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none" placeholder="••••••••"></div>
-        <button id="btnSignup" class="w-full py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-medium">Create account</button>
-        <button id="toSigninFromSignup" class="w-full py-2 rounded-xl border mt-1">Already have an account? Sign in</button>
+<!-- Sign up -->
+<div id="signup" class="fixed inset-0 hidden place-items-center bg-black/30">
+  <div class="w-[92vw] max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-6">
+    <h2 class="text-lg font-semibold mb-1">Create your account</h2>
+    <p class="text-sm text-slate-500 mb-4">Add your name, email, password, and profile picture</p>
+    <div class="space-y-3">
+      <div class="flex items-center gap-3">
+        <img id="suPreview" class="h-12 w-12 rounded-full object-cover bg-slate-200"/>
+        <input id="suPhoto" type="file" accept="image/*" class="text-sm"/>
       </div>
+      <div><label class="text-xs text-slate-500">Name</label><input id="suName" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none" placeholder="Your name"></div>
+      <div><label class="text-xs text-slate-500">Email</label><input id="suEmail" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none" placeholder="you@example.com"></div>
+      <div><label class="text-xs text-slate-500">Password</label><input id="suPass" type="password" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none" placeholder="••••••••"></div>
+      <button id="btnSignup" class="w-full py-2 rounded-xl btn-brand font-medium">Create account</button>
+      <button id="toSigninFromSignup" class="w-full py-2 rounded-xl border mt-1">Already have an account? Sign in</button>
     </div>
   </div>
+</div>
 
-  <div id="signin" class="fixed inset-0 hidden place-items-center bg-gradient-to-b from-sky-50/70 to-white/70 dark:from-slate-900/70 dark:to-slate-900/70">
-    <div class="w-[92vw] max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-6">
-      <h2 class="text-lg font-semibold mb-1">Welcome back</h2>
-      <p class="text-sm text-slate-500 mb-4">Sign in to continue</p>
-      <div class="space-y-3">
-        <div><label class="text-xs text-slate-500">Email</label><input id="siEmail" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none"></div>
-        <div><label class="text-xs text-slate-500">Password</label><input id="siPass" type="password" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none"></div>
-        <button id="btnSignin" class="w-full py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-medium">Sign in</button>
-        <button id="toSignupFromSignin" class="w-full py-2 rounded-xl border mt-1">Create a new account</button>
-      </div>
+<!-- Sign in -->
+<div id="signin" class="fixed inset-0 hidden place-items-center bg-black/30">
+  <div class="w-[92vw] max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-6">
+    <h2 class="text-lg font-semibold mb-1">Welcome back</h2>
+    <p class="text-sm text-slate-500 mb-4">Sign in to continue</p>
+    <div class="space-y-3">
+      <div><label class="text-xs text-slate-500">Email</label><input id="siEmail" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none"></div>
+      <div><label class="text-xs text-slate-500">Password</label><input id="siPass" type="password" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none"></div>
+      <button id="btnSignin" class="w-full py-2 rounded-xl btn-brand font-medium">Sign in</button>
+      <button id="toSignupFromSignin" class="w-full py-2 rounded-xl border mt-1">Create a new account</button>
     </div>
   </div>
+</div>
 
-  <div id="newChatModal" class="fixed inset-0 hidden place-items-center bg-black/40">
-    <div class="w-[92vw] max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-4">
-      <h3 class="font-semibold mb-2">Start a chat</h3>
-      <div class="text-sm mb-2">Choose people to chat with (Ctrl/⌘ for multi-select). 2+ = group chat.</div>
-      <select id="userPicker" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-3 py-2" size="6" multiple></select>
-      <div class="mt-3 flex items-center justify-end gap-2">
-        <button id="ncCancel" class="px-3 py-2 rounded-lg border">Cancel</button>
-        <button id="ncCreate" class="px-3 py-2 rounded-lg bg-sky-500 text-white">Create</button>
+<!-- Profile -->
+<div id="profile" class="fixed inset-0 hidden place-items-center bg-black/40">
+  <div class="w-[92vw] max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-6">
+    <h2 class="text-lg font-semibold mb-2">Your profile</h2>
+    <div class="flex items-center gap-4 mb-4">
+      <img id="pfPreview" class="h-16 w-16 rounded-full object-cover bg-slate-200"/>
+      <div>
+        <input id="pfPhoto" type="file" accept="image/*" class="text-sm"/>
+        <div class="text-xs text-slate-500">Upload a square image for best results</div>
       </div>
     </div>
+    <div class="space-y-3">
+      <div><label class="text-xs text-slate-500">Name</label><input id="pfName" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none"></div>
+      <div><label class="text-xs text-slate-500">Email</label><input id="pfEmail" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none" disabled></div>
+    </div>
+    <div class="mt-4 flex justify-end gap-2">
+      <button id="pfCancel" class="px-3 py-2 rounded-lg border">Cancel</button>
+      <button id="pfSave" class="px-3 py-2 rounded-lg btn-brand">Save</button>
+    </div>
   </div>
+</div>
 
-  <script>
-    const LS_USERS='wl_users_v1', LS_SESS='wl_session_v1', LS_THREADS='wl_threads_v1', LS_THEME='wl_theme';
-    const EMOJIS = ["😀","🥰","🔥","👍","🎉","🙏","✨","🥲","💯","🫶","😴","😎","🤍","🤣","🤔","🤖"];
-    const $ = (id)=>document.getElementById(id);
-    const byId = (arr,id)=>arr.find(x=>x.id===id);
-    const load=(k,f)=>{ try{ return JSON.parse(localStorage.getItem(k)||JSON.stringify(f)); }catch{ return f; } };
-    const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
-    const uid=(p='u')=>p+Math.random().toString(36).slice(2,10);
+<!-- New chat via picker -->
+<div id="newChatModal" class="fixed inset-0 hidden place-items-center bg-black/40">
+  <div class="w-[92vw] max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-4">
+    <h3 class="font-semibold mb-2">Start a chat</h3>
+    <div class="text-sm mb-2">Choose people (Ctrl/⌘ for multiple). 2+ = group chat.</div>
+    <select id="userPicker" class="w-full rounded-xl bg-slate-100 dark:bg-slate-800 px-3 py-2" size="6" multiple></select>
+    <div class="mt-3 flex items-center justify-end gap-2">
+      <button id="ncCancel" class="px-3 py-2 rounded-lg border">Cancel</button>
+      <button id="ncCreate" class="px-3 py-2 rounded-lg btn-brand">Create</button>
+    </div>
+  </div>
+</div>
 
-    let users=load(LS_USERS,[]), session=load(LS_SESS,{}), threads=load(LS_THREADS,{});
-    (localStorage.getItem(LS_THEME)==='dark') && document.documentElement.classList.add('dark');
+<!-- Find by email -->
+<div id="findEmailModal" class="fixed inset-0 hidden place-items-center bg-black/40">
+  <div class="w-[92vw] max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow p-6">
+    <h3 class="font-semibold mb-2">Find user by email</h3>
+    <input id="emailQuery" placeholder="Enter email address" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none"/>
+    <div id="emailResult" class="text-sm text-slate-500 mt-2"></div>
+    <div class="mt-4 flex justify-end gap-2">
+      <button id="feCancel" class="px-3 py-2 rounded-lg border">Close</button>
+      <button id="feStart" class="px-3 py-2 rounded-lg btn-brand">Start chat</button>
+    </div>
+  </div>
+</div>
 
-    // refs
-    const chatList=$('chatList'), chatListM=$('chatListM'), searchInput=$('searchInput'), searchInputM=$('searchInputM');
-    const messageScroll=$('messageScroll'), composer=$('composer'), btnSend=$('btnSend'), btnAttach=$('btnAttach'), btnEmoji=$('btnEmoji'), emojiPanel=$('emojiPanel');
-    const activeName=$('activeName'), activeAvatar=$('activeAvatar'), netState=$('netState'), whoami=$('whoami');
-    const meEmail=$('meEmail'), meEmailM=$('meEmailM'), meAvatar=$('meAvatar'), meAvatarM=$('meAvatarM');
-    const btnTheme=$('btnTheme'), btnThemeMobile=$('btnThemeMobile'), btnLogout=$('btnLogout'), btnNewChat=$('btnNewChat'), btnNewChatM=$('btnNewChatM');
-    const auth=$('auth'), signup=$('signup'), signin=$('signin');
-    const goSignup=$('goSignup'), goSignin=$('goSignin'), btnSignup=$('btnSignup'), btnSignin=$('btnSignin');
-    const suName=$('suName'), suEmail=$('suEmail'), suPass=$('suPass'), siEmail=$('siEmail'), siPass=$('siPass');
-    const toSigninFromSignup=$('toSigninFromSignup'), toSignupFromSignin=$('toSignupFromSignin');
-    const mobileMenu=$('mobileMenu'), drawer=$('drawer'), drawerBackdrop=$('drawerBackdrop');
-    const newChatModal=$('newChatModal'), userPicker=$('userPicker'), ncCreate=$('ncCreate'), ncCancel=$('ncCancel');
-    const activeTitle=$('activeTitle');
+<script>
+/* ===== STORAGE & SETUP ===== */
+const LS_USERS='wl_users_v3', LS_SESS='wl_session_v3', LS_THREADS='wl_threads_v3', LS_THEME='wl_theme';
+const EMOJIS=["😀","🥰","🔥","👍","🎉","🙏","✨","🥲","💯","🫶","😴","😎","🤍","🤣","🤔","🤖"];
+const $=id=>document.getElementById(id); const byId=(arr,id)=>arr.find(x=>x.id===id);
+const load=(k,f)=>{ try{ return JSON.parse(localStorage.getItem(k)||JSON.stringify(f)); }catch{ return f; } };
+const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+const uid=(p='u')=>p+Math.random().toString(36).slice(2,10);
+let users=load(LS_USERS,[]), session=load(LS_SESS,{}), threads=load(LS_THREADS,{});
+if(localStorage.getItem(LS_THEME)==='dark') document.documentElement.classList.add('dark');
 
-    function toggleTheme(){ document.documentElement.classList.toggle('dark'); localStorage.setItem(LS_THEME, document.documentElement.classList.contains('dark')?'dark':'light'); }
-    btnTheme.onclick=toggleTheme; btnThemeMobile.onclick=toggleTheme;
-    mobileMenu.onclick=()=>drawer.classList.remove('hidden'); drawerBackdrop.onclick=()=>drawer.classList.add('hidden');
+const chatList=$('chatList'), chatListM=$('chatListM'), searchInput=$('searchInput'), searchInputM=$('searchInputM');
+const messageScroll=$('messageScroll'), composer=$('composer'), btnSend=$('btnSend'), btnAttach=$('btnAttach'), btnEmoji=$('btnEmoji'), emojiPanel=$('emojiPanel');
+const activeName=$('activeName'), activeAvatar=$('activeAvatar');
+const meName=$('meName'), meEmail=$('meEmail'), meAvatar=$('meAvatar');
+const meNameM=$('meNameM'), meEmailM=$('meEmailM'), meAvatarM=$('meAvatarM');
+const btnThemeMobile=$('btnThemeMobile'), mobileMenu=$('mobileMenu'), drawer=$('drawer'), drawerBackdrop=$('drawerBackdrop');
+const btnNewChat=$('btnNewChat'), btnNewChatM=$('btnNewChatM'), newChatModal=$('newChatModal'), userPicker=$('userPicker');
+const btnLogout=$('btnLogout'), btnLogoutM=$('btnLogoutM'), btnFindByEmail=$('btnFindByEmail'), btnFindByEmailM=$('btnFindByEmailM');
+const findEmailModal=$('findEmailModal'), emailQuery=$('emailQuery'), emailResult=$('emailResult'), feStart=$('feStart'), feCancel=$('feCancel');
+const auth=$('auth'), signup=$('signup'), signin=$('signin');
+const goSignup=$('goSignup'), goSignin=$('goSignin'), btnSignup=$('btnSignup'), btnSignin=$('btnSignin');
+const suPhoto=$('suPhoto'), suPreview=$('suPreview'), suName=$('suName'), suEmail=$('suEmail'), suPass=$('suPass');
+const toSigninFromSignup=$('toSigninFromSignup'), toSignupFromSignin=$('toSignupFromSignin');
+const profile=$('profile'), btnProfile=$('btnProfile'), btnProfileM=$('btnProfileM'), pfPreview=$('pfPreview'), pfPhoto=$('pfPhoto'), pfName=$('pfName'), pfEmail=$('pfEmail'), pfCancel=$('pfCancel'), pfSave=$('pfSave');
 
-    function renderEmojis(){ emojiPanel.innerHTML=''; EMOJIS.forEach(e=>{ const b=document.createElement('button'); b.textContent=e; b.className='text-xl hover:scale-110 transition'; b.onclick=()=>{ composer.value+=e; emojiPanel.classList.add('hidden'); }; emojiPanel.appendChild(b); }); }
-    renderEmojis();
-    btnEmoji.onclick=()=>emojiPanel.classList.toggle('hidden');
-
-    function hash(p){ let h=0; for(let i=0;i<p.length;i++){ h=(h*31+p.charCodeAt(i))|0; } return String(h); }
-
-    function show(view){ [auth,signup,signin].forEach(v=>v.style.display='none'); if(view) view.style.display='grid'; }
-
-    function signupUser(){ const name=(suName.value||'').trim(), email=(suEmail.value||'').trim().toLowerCase(), pass=(suPass.value||'').trim(); if(!name||!email||!pass) return alert('Fill all fields'); if(users.some(u=>u.email===email)) return alert('Email already exists'); const u={id:uid('u_'),name,email,pass:hash(pass)}; users.push(u); save(LS_USERS,users); session={userId:u.id}; save(LS_SESS,session); initApp(); }
-    function signinUser(){ const email=(siEmail.value||'').trim().toLowerCase(), pass=(siPass.value||'').trim(); const u=users.find(x=>x.email===email && x.pass===hash(pass)); if(!u) return alert('Invalid credentials'); session={userId:u.id}; save(LS_SESS,session); initApp(); }
-    function logoutUser(){ session={}; save(LS_SESS,session); document.getElementById('app').style.display='none'; show(auth); }
-    goSignup.onclick=()=>show(signup); goSignin.onclick=()=>show(signin); btnSignup.onclick=signupUser; btnSignin.onclick=signinUser; toSigninFromSignup.onclick=()=>show(signin); toSignupFromSignin.onclick=()=>show(signup);
-    btnLogout.onclick=logoutUser;
-
-    function ensureSeed(){ if(users.length===0){ const a={id:uid('u_'),name:'Alice Kim',email:'alice@example.com',pass:hash('alice123')}; const b={id:uid('u_'),name:'Dev Bot',email:'devbot@example.com',pass:hash('devbot')}; users=[a,b]; save(LS_USERS,users); const t=uid('t_'); threads[t]={id:t,members:[a.id,b.id],name:null,msgs:[{id:uid('m_'),from:a.id,text:'Welcome to Weisleder Chat 🎉',ts:Date.now()-1000*60*60},{id:uid('m_'),from:b.id,text:'Multi-user demo on one device.',ts:Date.now()-1000*60*55}]}; save(LS_THREADS,threads); } }
-
-    function currentUser(){ return byId(users, session.userId) || null; }
-    function timeStr(ts){ const d=new Date(ts); return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
-    function threadKey(members){ return [...members].sort().join('|'); }
-    function findThreadByMembers(members){ const key=threadKey(members); return Object.values(threads).find(t=>threadKey(t.members)===key)||null; }
-
-    function openNewChat(){ renderUserPicker(); newChatModal.classList.remove('hidden'); }
-    function closeNewChat(){ newChatModal.classList.add('hidden'); }
-    btnNewChat.onclick=openNewChat; btnNewChatM.onclick=openNewChat; ncCancel.onclick=closeNewChat;
-    function renderUserPicker(){ const me=currentUser(); userPicker.innerHTML=''; users.filter(u=>u.id!==me.id).forEach(u=>{ const opt=document.createElement('option'); opt.value=u.id; opt.textContent=`${u.name} — ${u.email}`; userPicker.appendChild(opt); }); }
-    function createThread(memberIds){ const me=currentUser(); const members=Array.from(new Set([me.id, ...memberIds])); let t=findThreadByMembers(members); if(!t){ const id=uid('t_'); t=threads[id]={id, members, name: members.length>2? 'New Group' : null, msgs:[]}; save(LS_THREADS,threads); } currentThreadId=t.id; renderChats(); renderMessages(); }
-    ncCreate.onclick=()=>{ const sel=Array.from(userPicker.selectedOptions).map(o=>o.value); if(sel.length===0) return alert('Pick at least one user'); createThread(sel); closeNewChat(); }
-
-    let currentThreadId=null;
-    function contactName(uId){ const u=byId(users,uId); return u?u.name:'Unknown'; }
-    function threadDisplay(t){ const me=currentUser(); const others=t.members.filter(x=>x!==me.id); if(t.name && t.members.length>2) return t.name+` (${t.members.length})`; if(others.length===1) return contactName(others[0]); return `Group (${t.members.length})`; }
-
-    function renderChats(mobile=false){
-      const holder=mobile?chatListM:chatList, q=(mobile?searchInputM.value:searchInput.value||'').toLowerCase();
-      holder.innerHTML='';
-      const me=currentUser();
-      const list=Object.values(threads).filter(t=>t.members.includes(me.id)).map(t=>({...t,last:t.msgs[t.msgs.length-1]})).sort((a,b)=>(b.last?.ts||0)-(a.last?.ts||0)).filter(t=>threadDisplay(t).toLowerCase().includes(q));
-      list.forEach(t=>{
-        const btn=document.createElement('button');
-        btn.className='w-full px-3 py-2 flex items-center gap-3 hover:bg-slate-100 dark:hover:bg-slate-800 '+(t.id===currentThreadId?'bg-slate-100/70 dark:bg-slate-800/70':'');
-        const avatarText=t.members.length>2?'G':threadDisplay(t).slice(0,2).toUpperCase();
-        btn.innerHTML=`<div class="w-10 h-10 rounded-full grid place-items-center bg-slate-200 dark:bg-slate-700">${avatarText}</div>
-        <div class="flex-1 text-left"><div class="font-medium truncate">${threadDisplay(t)}</div><div class="text-xs text-slate-500 truncate">${t.last?t.last.text:'No messages yet'}</div></div>
-        <div class="text-[10px] text-slate-400">${t.last?timeStr(t.last.ts):''}</div>`;
-        btn.onclick=()=>{ currentThreadId=t.id; renderChats(mobile); renderMessages(); drawer.classList.add('hidden'); };
-        holder.appendChild(btn);
-      });
+/* ===== UTILITIES ===== */
+function pingSound(){  // small “delivered” ping
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.value = 920; g.gain.value = 0.05;
+    o.connect(g); g.connect(ctx.destination); o.start();
+    setTimeout(()=>{ o.frequency.value=620 }, 80);
+    setTimeout(()=>{ o.stop(); ctx.close(); }, 140);
+  }catch(e){}
+}
+async function notify(title, body, iconDataUrl){
+  try{
+    if(typeof Notification!=='undefined'){
+      if(Notification.permission==='default'){ await Notification.requestPermission(); }
+      if(Notification.permission==='granted'){ new Notification(title, { body, icon: iconDataUrl||undefined }); }
     }
+    if(navigator.vibrate) navigator.vibrate(20);
+  }catch(e){}
+}
+function hash(p){ let h=0; for(let i=0;i<p.length;i++){ h=(h*31+p.charCodeAt(i))|0; } return String(h); }
+function show(view){ [auth,signup,signin].forEach(v=>v.style.display='none'); if(view) view.style.display='grid'; }
+function fileToDataURL(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); }); }
+function timeStr(ts){ const d=new Date(ts); return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+function avatarUrl(u){ return u?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u?.name||'U')}&background=229ED9&color=fff`; }
 
-    function renderMessages(){
-      const me=currentUser(); const t=threads[currentThreadId];
-      if(!t){ activeName.textContent='Select a chat'; activeAvatar.textContent='💬'; messageScroll.innerHTML=''; return; }
-      activeTitle && (activeTitle.textContent=threadDisplay(t)); activeName.textContent=threadDisplay(t);
-      activeAvatar.textContent=t.members.length>2?'G':threadDisplay(t).slice(0,2).toUpperCase();
-      messageScroll.innerHTML='';
-      t.msgs.forEach(m=>{
-        const mine=m.from===me.id; const sender=users.find(u=>u.id===m.from);
-        const row=document.createElement('div'); row.className='flex '+(mine?'justify-end':'justify-start');
-        row.innerHTML=`<div class="max-w-[85%] md:max-w-[70%] rounded-2xl px-3 py-2 shadow-sm ${mine?'bg-sky-500 text-white':'bg-slate-100 dark:bg-slate-800'}">
-          ${t.members.length>2?`<div class="text-[11px] ${mine?'text-white/80':'text-slate-500'}">${sender?.name||'User'}</div>`:''}
-          <div class="whitespace-pre-wrap break-words">${m.text}</div>
-          <div class="text-[10px] mt-1 ${mine?'text-white/80':'text-slate-500'}">${timeStr(m.ts)}</div></div>`;
-        messageScroll.appendChild(row);
-      });
-      messageScroll.scrollTop=messageScroll.scrollHeight;
-      whoami.textContent=`${me.name} · ${me.email}`; meEmail.textContent=me.email; meEmailM.textContent=me.email; meAvatar.textContent=(me.name[0]||'U').toUpperCase(); meAvatarM.textContent=(me.name[0]||'U').toUpperCase();
-    }
+/* ===== THEME & DRAWER ===== */
+btnThemeMobile.onclick=()=>{ document.documentElement.classList.toggle('dark'); localStorage.setItem(LS_THEME, document.documentElement.classList.contains('dark')?'dark':'light'); };
+mobileMenu.onclick=()=>drawer.classList.remove('hidden'); drawerBackdrop.onclick=()=>drawer.classList.add('hidden');
 
-    function addMessage(text){ if(!currentThreadId) return alert('Select or create a chat'); const me=currentUser(); const t=threads[currentThreadId]; t.msgs.push({id:uid('m_'), from:me.id, text, ts:Date.now()}); save(LS_THREADS,threads); renderChats(); renderMessages(); }
-    btnSend.onclick=()=>{ const txt=(composer.value||'').trim(); if(!txt) return; addMessage(txt); composer.value=''; };
-    composer.onkeydown=(e)=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ btnSend.click(); } };
-    btnAttach.onclick=()=>addMessage('[file] demo.pdf');
+/* ===== EMOJI ===== */
+(function(){ emojiPanel.innerHTML=''; ["😀","🥰","🔥","👍","🎉","🙏","✨","🥲","💯","🫶","😴","😎","🤍","🤣","🤔","🤖"].forEach(e=>{ const b=document.createElement('button'); b.textContent=e; b.className='text-xl hover:scale-110 transition'; b.onclick=()=>{ composer.value+=e; emojiPanel.classList.add('hidden'); }; emojiPanel.appendChild(b); }); })();
+btnEmoji.onclick=()=>emojiPanel.classList.toggle('hidden');
 
-    searchInput.oninput=()=>renderChats();
-    searchInputM.oninput=()=>renderChats(true);
+/* ===== AUTH ===== */
+suPhoto.addEventListener('change', async ()=>{ const f=suPhoto.files?.[0]; if(!f) return; suPreview.src=await fileToDataURL(f); });
+async function signupUser(){
+  const name=(suName.value||'').trim(), email=(suEmail.value||'').trim().toLowerCase(), pass=(suPass.value||'').trim();
+  if(!name||!email||!pass) return alert('Fill all fields');
+  if(users.some(u=>u.email===email)) return alert('Email already exists');
+  let avatar=null; if(suPhoto.files && suPhoto.files[0]) avatar=await fileToDataURL(suPhoto.files[0]);
+  const u={ id:uid('u_'), name, email, pass:hash(pass), avatar };
+  users.push(u); save(LS_USERS,users); session={userId:u.id}; save(LS_SESS,session); initApp();
+}
+function signinUser(){
+  const email=($('siEmail').value||'').trim().toLowerCase(), pass=($('siPass').value||'').trim();
+  const u=users.find(x=>x.email===email && x.pass===hash(pass)); if(!u) return alert('Invalid credentials');
+  session={userId:u.id}; save(LS_SESS,session); initApp();
+}
+function logoutUser(){ session={}; save(LS_SESS,session); document.getElementById('app').style.display='none'; show(auth); }
+goSignup.onclick=()=>show(signup); goSignin.onclick=()=>show(signin); btnSignup.onclick=signupUser; btnSignin.onclick=signinUser; toSigninFromSignup.onclick=()=>show(signin); toSignupFromSignin.onclick=()=>show(signup);
+btnLogout.onclick=logoutUser; btnLogoutM && (btnLogoutM.onclick=logoutUser);
 
-    function initApp(){
-      ensureSeed();
-      const me=currentUser(); if(!me){ show(auth); return; }
-      document.getElementById('app').style.display='flex'; [auth,signup,signin].forEach(v=>v.style.display='none');
-      const mine=Object.values(threads).filter(t=>t.members.includes(me.id)).sort((a,b)=>(b.msgs.at(-1)?.ts||0)-(a.msgs.at(-1)?.ts||0));
-      currentThreadId=mine[0]?.id||null;
-      renderChats(); renderMessages();
-    }
+/* ===== SEED DEMO ===== */
+function ensureSeed(){
+  if(users.length===0){
+    const a={id:uid('u_'),name:'Alice',email:'alice@example.com',pass:hash('alice123'),avatar:null};
+    const b={id:uid('u_'),name:'Dev Bot',email:'bot@example.com',pass:hash('devbot'),avatar:null};
+    users=[a,b]; save(LS_USERS,users);
+    const t=uid('t_');
+    threads[t]={id:t,members:[a.id,b.id],name:null,msgs:[
+      {id:uid('m_'),from:a.id,text:'Welcome to Weisleder Chat 🎉',ts:Date.now()-1000*60*60},
+      {id:uid('m_'),from:b.id,text:'Now installable with notifications!',ts:Date.now()-1000*60*55}
+    ]}; save(LS_THREADS,threads);
+  }
+}
 
-    // start
-    if (session.userId && byId(users, session.userId)) { initApp(); } else { show(auth); }
-  </script>
+/* ===== THREADS ===== */
+function threadKey(members){ return [...members].sort().join('|'); }
+function findThreadByMembers(members){ const key=threadKey(members); return Object.values(threads).find(t=>threadKey(t.members)===key)||null; }
+function openNewChat(){ renderUserPicker(); newChatModal.classList.remove('hidden'); }
+function closeNewChat(){ newChatModal.classList.add('hidden'); }
+$('ncCancel').onclick=closeNewChat;
+btnNewChat.onclick=openNewChat; btnNewChatM && (btnNewChatM.onclick=openNewChat);
+
+function renderUserPicker(){ const me=currentUser(); userPicker.innerHTML=''; users.filter(u=>u.id!==me.id).forEach(u=>{ const opt=document.createElement('option'); opt.value=u.id; opt.textContent=`${u.name} — ${u.email}`; userPicker.appendChild(opt); }); }
+function createThread(memberIds){
+  const me=currentUser(); const members=Array.from(new Set([me.id, ...memberIds]));
+  let t=findThreadByMembers(members);
+  if(!t){ const id=uid('t_'); t=threads[id]={id, members, name: members.length>2? 'New Group' : null, msgs:[]}; save(LS_THREADS,threads); }
+  currentThreadId=t.id; renderChats(); renderMessages();
+}
+$('ncCreate').onclick=()=>{ const sel=Array.from(userPicker.selectedOptions).map(o=>o.value); if(sel.length===0) return alert('Pick at least one user'); createThread(sel); closeNewChat(); };
+
+/* ===== FIND BY EMAIL ===== */
+function openFindByEmail(){ emailQuery.value=''; emailResult.textContent=''; findEmailModal.classList.remove('hidden'); }
+function closeFindByEmail(){ findEmailModal.classList.add('hidden'); }
+btnFindByEmail.onclick=openFindByEmail; btnFindByEmailM && (btnFindByEmailM.onclick=openFindByEmail);
+feCancel.onclick=closeFindByEmail;
+feStart.onclick=()=>{
+  const email=(emailQuery.value||'').trim().toLowerCase();
+  if(!email) return;
+  const u=users.find(x=>x.email===email);
+  if(!u){ emailResult.textContent='No user with that email yet.'; return; }
+  createThread([u.id]); closeFindByEmail();
+};
+
+/* ===== RENDER ===== */
+let currentThreadId=null;
+function currentUser(){ return byId(users, session.userId) || null; }
+function contactName(id){ const u=byId(users,id); return u?u.name:'Unknown'; }
+function threadDisplay(t){
+  const me=currentUser(); const others=t.members.filter(x=>x!==me.id);
+  if(t.name && t.members.length>2) return t.name+` (${t.members.length})`;
+  if(others.length===1) return contactName(others[0]);
+  return `Group (${t.members.length})`;
+}
+function renderChats(mobile=false){
+  const holder=mobile?$('chatListM'):chatList; const q=(mobile?$('searchInputM').value:searchInput.value||'').toLowerCase();
+  holder.innerHTML='';
+  const me=currentUser();
+  const list=Object.values(threads)
+    .filter(t=>t.members.includes(me.id))
+    .map(t=>({...t,last:t.msgs[t.msgs.length-1]}))
+    .sort((a,b)=>(b.last?.ts||0)-(a.last?.ts||0))
+    .filter(t=>threadDisplay(t).toLowerCase().includes(q));
+  list.forEach(t=>{
+    const others=t.members.filter(x=>x!==me.id); const first=byId(users, others[0]);
+    const btn=document.createElement('button');
+    btn.className='w-full px-3 py-2 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800';
+    btn.innerHTML=`<img class='h-10 w-10 rounded-full object-cover bg-slate-200' src='${avatarUrl(first)}'/>
+      <div class='flex-1 text-left'>
+        <div class='font-medium truncate'>${threadDisplay(t)}</div>
+        <div class='text-xs text-slate-500 truncate'>${t.last?t.last.text:'No messages yet'}</div>
+      </div>
+      <div class='text-[10px] text-slate-400'>${t.last?timeStr(t.last.ts):''}</div>`;
+    btn.onclick=()=>{ currentThreadId=t.id; renderChats(mobile); renderMessages(); drawer.classList.add('hidden'); };
+    holder.appendChild(btn);
+  });
+}
+function renderMessages(){
+  const me=currentUser(); const t=threads[currentThreadId];
+  if(!t){ activeName.textContent='Select a chat'; activeAvatar.src=''; messageScroll.innerHTML=''; return; }
+  const others=t.members.filter(x=>x!==me.id); const first=byId(users, others[0]);
+  activeName.textContent=threadDisplay(t); activeAvatar.src = avatarUrl(first);
+  messageScroll.innerHTML='';
+  t.msgs.forEach(m=>{
+    const mine=m.from===me.id; const sender=byId(users,m.from);
+    const row=document.createElement('div'); row.className='flex '+(mine?'justify-end':'justify-start');
+    const bubble=document.createElement('div'); bubble.className='bubble '+(mine?'out':'in')+' max-w-[85%] md:max-w-[70%] rounded-2xl px-3 py-2 shadow-sm';
+    bubble.style.backgroundColor=mine?'var(--outgoing)':'#ffffff';
+    bubble.innerHTML=`${t.members.length>2?`<div class='text-[11px] ${mine?"":"text-sky-700"}'>${sender?.name||'User'}</div>`:''}
+      <div class='whitespace-pre-wrap break-words'>${m.text}</div>
+      <div class='text-[10px] mt-1 text-slate-500 flex items-center gap-1'>${timeStr(m.ts)} ${mine?"<span class='tick'>✔✔</span>":""}</div>`;
+    if(!mine){
+      const av=document.createElement('img'); av.src=avatarUrl(sender); av.className='h-6 w-6 rounded-full object-cover mr-2 self-end';
+      const wrap=document.createElement('div'); wrap.className='flex items-end'; wrap.appendChild(av); wrap.appendChild(bubble); row.appendChild(wrap);
+    } else { row.appendChild(bubble); }
+    messageScroll.appendChild(row);
+  });
+  messageScroll.scrollTop=messageScroll.scrollHeight;
+  meName.textContent=me.name; meEmail.textContent=me.email; meAvatar.src=avatarUrl(me);
+  meNameM.textContent=me.name; meEmailM.textContent=me.email; meAvatarM.src=avatarUrl(me);
+}
+
+/* ===== SEND / NOTIFY ===== */
+function addMessage(text){
+  if(!currentThreadId) return alert('Select or create a chat');
+  const me=currentUser(); const t=threads[currentThreadId];
+  const msg={id:uid('m_'),from:me.id,text,ts:Date.now()};
+  t.msgs.push(msg); save(LS_THREADS,threads);
+  renderChats(); renderMessages();
+  pingSound(); // delivered sound for my message
+}
+btnSend.onclick=()=>{ const txt=(composer.value||'').trim(); if(!txt) return; addMessage(txt); composer.value=''; };
+composer.onkeydown=e=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ btnSend.click(); } };
+btnAttach.onclick=()=>addMessage('[file] demo.pdf');
+searchInput.oninput=()=>renderChats(); searchInputM && (searchInputM.oninput=()=>renderChats(true));
+
+/* ===== PROFILE (edit any name) ===== */
+function openProfile(){ const me=currentUser(); pfPreview.src=avatarUrl(me); pfName.value=me.name; pfEmail.value=me.email; profile.classList.remove('hidden'); }
+function closeProfile(){ profile.classList.add('hidden'); }
+btnProfile.onclick=openProfile; btnProfileM.onclick=openProfile; pfCancel.onclick=closeProfile;
+pfPhoto.addEventListener('change', async()=>{ const f=pfPhoto.files?.[0]; if(!f) return; pfPreview.src=await fileToDataURL(f); });
+pfSave.onclick=async()=>{
+  const me=currentUser();
+  me.name = pfName.value || me.name;                 // users can change to ANY display name
+  if(pfPhoto.files && pfPhoto.files[0]) me.avatar = await fileToDataURL(pfPhoto.files[0]);
+  save(LS_USERS,users); closeProfile(); renderChats(); renderMessages();
+};
+
+/* ===== NOTIFICATION WATCHER =====
+   On this local demo, “incoming” = any new message not from you,
+   detected via polling localStorage (works across multiple tabs on same device).
+*/
+function maybeNotify(m){
+  const me=currentUser();
+  if(!me || m.from===me.id) return;
+  const sender=byId(users,m.from);
+  notify(sender?.name||'New message', m.text, avatarUrl(sender));
+  pingSound();
+}
+function watchThreadMutations(){
+  let lastCounts={};
+  setInterval(()=>{
+    const me=currentUser(); if(!me) return;
+    const ts=load(LS_THREADS,{});
+    Object.values(ts).forEach(t=>{
+      const c=t.msgs.length;
+      if(lastCounts[t.id]!==undefined && c>lastCounts[t.id]){
+        const newMsgs=t.msgs.slice(lastCounts[t.id]);
+        newMsgs.forEach(m=>maybeNotify(m));
+      }
+      lastCounts[t.id]=c;
+    });
+  }, 900);
+}
+
+/* ===== INIT ===== */
+function ensurePicker(){ /* no-op (legacy hook) */ }
+function renderUserPicker(){ const me=currentUser(); userPicker.innerHTML=''; users.filter(u=>u.id!==me.id).forEach(u=>{ const opt=document.createElement('option'); opt.value=u.id; opt.textContent=`${u.name} — ${u.email}`; userPicker.appendChild(opt); }); }
+function initApp(){
+  ensureSeed();
+  const me=byId(users, session.userId);
+  if(!me){ show(auth); return; }
+  document.getElementById('app').style.display='flex';
+  [auth,signup,signin].forEach(v=>v.style.display='none');
+  const mine=Object.values(threads).filter(t=>t.members.includes(me.id)).sort((a,b)=>(b.msgs.at(-1)?.ts||0)-(a.msgs.at(-1)?.ts||0));
+  currentThreadId=mine[0]?.id||null;
+  renderChats(); renderMessages(); watchThreadMutations();
+
+  // Ask once so A2HS button appears sooner on Android
+  if(typeof Notification!=='undefined' && Notification.permission==='default'){ Notification.requestPermission(); }
+}
+
+// Start
+if (session.userId && byId(users, session.userId)) { initApp(); } else { show(auth); }
+
+/* ===== PWA: register the service worker ===== */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').catch(console.error);
+  });
+}
+</script>
 </body>
 </html>
